@@ -31,14 +31,15 @@
   </div>
 </div>
 
+<!-- SDK + Leaflet + config SYNCHROON laden (klassieke scripts). Cruciaal: de
+     SDK-listener moet klaarstaan vóór de Assets-client z'n init-bericht stuurt.
+     Een async esm.sh-import laadt te laat en mist dat bericht → handshake-timeout. -->
+<script src="https://cdn.jsdelivr.net/npm/@woodwing/assets-client-sdk@0.0.5/dist/assets-client-sdk.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="./config.js"></script>
-<script type="module">
-  // De SDK is een UMD-bundle; we laden 'm als ES-module via esm.sh zodat er geen
-  // build-stap (Webpack/TypeScript) nodig is en het bestand statisch te hosten is.
-  // esm.sh zet alle exports onder de default export (named imports werken niet).
-  import sdk from 'https://esm.sh/@woodwing/assets-client-sdk@0.0.5';
-  const { AssetsPluginContext } = sdk;
+<script>
+  // UMD-global van de SDK: window.AssetsClientSdk
+  const { AssetsPluginContext } = window.AssetsClientSdk;
 
   const cfg = window.PLUGIN_CONFIG;
   const $ = (id) => document.getElementById(id);
@@ -60,10 +61,10 @@
     const lat = parseFloat(md[cfg.GPS_LAT_FIELD]);
     const lon = parseFloat(md[cfg.GPS_LON_FIELD]);
     if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
-    // fallback: gecombineerd "lat,lon" veld
+    // fallback: gecombineerd veld, scheidingsteken komma OF spatie ("lat lon" / "lat,lon")
     const combined = md[cfg.GPS_LOCATION_FIELD];
-    if (typeof combined === 'string' && combined.includes(',')) {
-      const [a, b] = combined.split(',').map(s => parseFloat(s.trim()));
+    if (typeof combined === 'string') {
+      const [a, b] = combined.trim().split(/[,\s]+/).map(parseFloat);
       if (!isNaN(a) && !isNaN(b)) return { lat: a, lon: b };
     }
     return null;
