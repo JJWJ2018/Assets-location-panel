@@ -213,8 +213,7 @@
 
     const coords = extractCoords(md);
     if (!coords) {
-      const gpsLike = Object.keys(md).filter(k => /gps|lat|lon|geo|coord|position/i.test(k));
-      showStatus('No GPS coordinates in this photo.' + (gpsLike.length ? ' (Fields seen: ' + gpsLike.join(', ') + ')' : ''), true);
+      showStatus('No GPS coordinates in this photo.', true);
       return;
     }
 
