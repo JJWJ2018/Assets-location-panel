@@ -117,18 +117,42 @@
     } catch (e) { return null; }
   }
 
+  // ---- TIJDELIJKE DIAGNOSTIEK ----
+  // Stuurt status naar de Assets-pagina zodat we van buitenaf kunnen meekijken.
+  // Verwijderen zodra de plugin werkt.
+  const diag = (stage, extra) => {
+    try { window.parent.postMessage({ __diag: true, stage, ...extra }, '*'); } catch (_) {}
+    try { $('status').textContent = 'DIAG: ' + stage + (extra ? ' ' + JSON.stringify(extra).slice(0,120) : ''); } catch(_){}
+  };
+  const sample = (obj) => {
+    try { return obj && typeof obj === 'object' ? Object.keys(obj).slice(0, 40) : String(obj).slice(0,40); }
+    catch (_) { return 'n/a'; }
+  };
+
   (async () => {
+    diag('boot', { hasPC: typeof AssetsPluginContext !== 'undefined' });
     try {
-      // get() neemt alleen de whitelist; updates volg je via subscribe().
-      const ctx = await AssetsPluginContext.get(cfg.CLIENT_URL_WHITELIST);
+      // Race get() tegen een timeout zodat we "blijft hangen" kunnen onderscheiden.
+      const ctx = await Promise.race([
+        AssetsPluginContext.get(cfg.CLIENT_URL_WHITELIST),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('TIMEOUT_8s')), 8000)),
+      ]);
+      const c = ctx.context || {};
+      const at = c.activeTab || {};
+      const sel = at.assetSelection || c.assetSelection || [];
+      const first = sel && sel.length ? sel[0] : null;
+      diag('connected', {
+        ctxKeys: sample(c),
+        activeTabKeys: sample(at),
+        selLen: Array.isArray(sel) ? sel.length : 'not-array',
+        firstItemKeys: first ? sample(first) : null,
+        mdKeys: first && first.metadata ? sample(first.metadata) : null,
+      });
       const update = () => render(firstSelected(ctx.context));
-      update();              // initiële selectie tonen
-      ctx.subscribe(update); // bij elke selectiewijziging opnieuw renderen
+      update();
+      ctx.subscribe(update);
     } catch (err) {
-      const status = $('status');
-      status.className = 'msg';
-      status.textContent = 'Kon geen verbinding maken met Assets. '
-        + 'Draait deze pagina binnen het Assets-panel? (' + err + ')';
+      diag('error', { msg: String(err && err.message || err).slice(0, 120) });
     }
   })();
 </script>
