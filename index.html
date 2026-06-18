@@ -36,7 +36,9 @@
 <script type="module">
   // De SDK is een UMD-bundle; we laden 'm als ES-module via esm.sh zodat er geen
   // build-stap (Webpack/TypeScript) nodig is en het bestand statisch te hosten is.
-  import { AssetsPluginContext } from 'https://esm.sh/@woodwing/assets-client-sdk@0.0.5';
+  // esm.sh zet alle exports onder de default export (named imports werken niet).
+  import sdk from 'https://esm.sh/@woodwing/assets-client-sdk@0.0.5';
+  const { AssetsPluginContext } = sdk;
 
   const cfg = window.PLUGIN_CONFIG;
   const $ = (id) => document.getElementById(id);
@@ -51,8 +53,10 @@
   }
 
   // Haalt lat/long uit de metadata van een geselecteerde asset.
-  function extractCoords(md) {
-    if (!md) return null;
+  // GPS-velden kunnen direct op het item staan of onder .metadata — beide proberen.
+  function extractCoords(asset) {
+    if (!asset) return null;
+    const md = asset.metadata || asset;
     const lat = parseFloat(md[cfg.GPS_LAT_FIELD]);
     const lon = parseFloat(md[cfg.GPS_LON_FIELD]);
     if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
@@ -78,10 +82,10 @@
       return;
     }
 
-    const md = asset.metadata || {};
-    $('assetName').textContent = md.name || md.filename || asset.id || 'Asset';
+    const md = asset.metadata || asset;
+    $('assetName').textContent = md.name || md.filename || asset.name || asset.id || 'Asset';
 
-    const coords = extractCoords(md);
+    const coords = extractCoords(asset);
     if (!coords) {
       $('map').style.display = 'none';
       $('coords').textContent = '';
@@ -115,15 +119,11 @@
 
   (async () => {
     try {
-      // TODO VERIFIEER: tweede argument is volgens de WoodWing-docs een handler
-      // die op selectie-updates reageert. Exacte signatuur checken tegen de
-      // SDK-README/typedefs in jullie testomgeving.
-      const contextService = await AssetsPluginContext.get(
-        cfg.CLIENT_URL_WHITELIST,
-        (updatedCtx) => render(firstSelected(updatedCtx))
-      );
-      // Initiële selectie meteen tonen.
-      render(firstSelected(contextService.context));
+      // get() neemt alleen de whitelist; updates volg je via subscribe().
+      const ctx = await AssetsPluginContext.get(cfg.CLIENT_URL_WHITELIST);
+      const update = () => render(firstSelected(ctx.context));
+      update();              // initiële selectie tonen
+      ctx.subscribe(update); // bij elke selectiewijziging opnieuw renderen
     } catch (err) {
       const status = $('status');
       status.className = 'msg';
