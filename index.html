@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Location</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root { --border:#e3e6ea; --text:#1b1f24; --muted:#6b7480; --accent:#2f6df6; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--text); }
+  .wrap { display:flex; flex-direction:column; height:100vh; }
+  .body { padding:12px 14px; overflow-y:auto; flex:1; }
+  .asset-name { font-size:13px; font-weight:600; margin:0 0 2px; word-break:break-all; }
+  .coords { font-size:12px; color:var(--muted); margin:0 0 10px; font-variant-numeric:tabular-nums; }
+  #map { width:100%; height:280px; border-radius:10px; border:1px solid var(--border); }
+  .place { margin-top:10px; font-size:13px; }
+  .place b { display:block; font-size:12px; color:var(--muted); font-weight:500; margin-bottom:2px; }
+  .msg { margin-top:8px; font-size:12px; color:var(--muted); background:#fff7e6; border:1px solid #ffe0a3; padding:10px; border-radius:8px; }
+  .msg.info { background:#eef3ff; border-color:#cdd9ff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="body">
+    <p class="asset-name" id="assetName">Geen asset geselecteerd</p>
+    <p class="coords" id="coords"></p>
+    <div id="map" style="display:none;"></div>
+    <div class="place" id="place"></div>
+    <div class="msg info" id="status">Verbinden met Assets…</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="./config.js"></script>
+<script type="module">
+  // De SDK is een UMD-bundle; we laden 'm als ES-module via esm.sh zodat er geen
+  // build-stap (Webpack/TypeScript) nodig is en het bestand statisch te hosten is.
+  import { AssetsPluginContext } from 'https://esm.sh/@woodwing/assets-client-sdk@0.0.5';
+
+  const cfg = window.PLUGIN_CONFIG;
+  const $ = (id) => document.getElementById(id);
+  let map, marker;
+
+  function ensureMap() {
+    if (map) return;
+    map = L.map('map', { zoomControl: true }).setView([20, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '© OpenStreetMap'
+    }).addTo(map);
+  }
+
+  // Haalt lat/long uit de metadata van een geselecteerde asset.
+  function extractCoords(md) {
+    if (!md) return null;
+    const lat = parseFloat(md[cfg.GPS_LAT_FIELD]);
+    const lon = parseFloat(md[cfg.GPS_LON_FIELD]);
+    if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
+    // fallback: gecombineerd "lat,lon" veld
+    const combined = md[cfg.GPS_LOCATION_FIELD];
+    if (typeof combined === 'string' && combined.includes(',')) {
+      const [a, b] = combined.split(',').map(s => parseFloat(s.trim()));
+      if (!isNaN(a) && !isNaN(b)) return { lat: a, lon: b };
+    }
+    return null;
+  }
+
+  function render(asset) {
+    const status = $('status');
+    if (!asset) {
+      $('assetName').textContent = 'Geen asset geselecteerd';
+      $('coords').textContent = '';
+      $('map').style.display = 'none';
+      $('place').innerHTML = '';
+      status.style.display = 'block';
+      status.className = 'msg info';
+      status.textContent = 'Selecteer een foto om de locatie te zien.';
+      return;
+    }
+
+    const md = asset.metadata || {};
+    $('assetName').textContent = md.name || md.filename || asset.id || 'Asset';
+
+    const coords = extractCoords(md);
+    if (!coords) {
+      $('map').style.display = 'none';
+      $('coords').textContent = '';
+      $('place').innerHTML = '';
+      status.style.display = 'block';
+      status.className = 'msg';
+      status.textContent = 'Deze asset bevat geen GPS-metadata.';
+      return;
+    }
+
+    status.style.display = 'none';
+    $('coords').textContent = coords.lat.toFixed(5) + ', ' + coords.lon.toFixed(5);
+    $('place').innerHTML = '';
+    $('map').style.display = 'block';
+    ensureMap();
+    setTimeout(() => map.invalidateSize(), 0);
+    map.setView([coords.lat, coords.lon], 13, { animate: true });
+    if (marker) marker.remove();
+    marker = L.marker([coords.lat, coords.lon]).addTo(map);
+  }
+
+  // Pakt de eerste geselecteerde asset uit een context/selectie-object.
+  function firstSelected(ctx) {
+    try {
+      const sel = ctx?.activeTab?.assetSelection
+        || ctx?.assetSelection
+        || (Array.isArray(ctx) ? ctx : null);
+      return sel && sel.length ? sel[0] : null;
+    } catch (e) { return null; }
+  }
+
+  (async () => {
+    try {
+      // TODO VERIFIEER: tweede argument is volgens de WoodWing-docs een handler
+      // die op selectie-updates reageert. Exacte signatuur checken tegen de
+      // SDK-README/typedefs in jullie testomgeving.
+      const contextService = await AssetsPluginContext.get(
+        cfg.CLIENT_URL_WHITELIST,
+        (updatedCtx) => render(firstSelected(updatedCtx))
+      );
+      // Initiële selectie meteen tonen.
+      render(firstSelected(contextService.context));
+    } catch (err) {
+      const status = $('status');
+      status.className = 'msg';
+      status.textContent = 'Kon geen verbinding maken met Assets. '
+        + 'Draait deze pagina binnen het Assets-panel? (' + err + ')';
+    }
+  })();
+</script>
+</body>
+</html>
