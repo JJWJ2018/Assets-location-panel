@@ -31,17 +31,13 @@
   </div>
 </div>
 
-<!-- SDK + Leaflet + config SYNCHROON laden (klassieke scripts). Cruciaal: de
-     SDK-listener moet klaarstaan vóór de Assets-client z'n init-bericht stuurt.
-     Een async esm.sh-import laadt te laat en mist dat bericht → handshake-timeout. -->
-<script src="https://cdn.jsdelivr.net/npm/@woodwing/assets-client-sdk@0.0.5/dist/assets-client-sdk.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="./config.js"></script>
-<script>
-  // UMD-global van de SDK: window.AssetsClientSdk
-  const { AssetsPluginContext } = window.AssetsClientSdk;
+<script type="module">
+  // Assets 10 panel-plugin SDK (zelfde als de AI Agent gebruikt).
+  import { Assets10Client } from 'https://unpkg.com/@woodwing/a10-client-sdk@1.0.0/dist/index.mjs';
 
-  const cfg = window.PLUGIN_CONFIG;
+  const cfg = window.PLUGIN_CONFIG || {};
   const $ = (id) => document.getElementById(id);
   let map, marker;
 
@@ -54,10 +50,8 @@
   }
 
   // Haalt lat/long uit de metadata van een geselecteerde asset.
-  // GPS-velden kunnen direct op het item staan of onder .metadata — beide proberen.
-  function extractCoords(asset) {
-    if (!asset) return null;
-    const md = asset.metadata || asset;
+  function extractCoords(md) {
+    if (!md) return null;
     const lat = parseFloat(md[cfg.GPS_LAT_FIELD]);
     const lon = parseFloat(md[cfg.GPS_LON_FIELD]);
     if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
@@ -83,17 +77,20 @@
       return;
     }
 
-    const md = asset.metadata || asset;
-    $('assetName').textContent = md.name || md.filename || asset.name || asset.id || 'Asset';
+    const md = asset.metadata || {};
+    $('assetName').textContent = md.filename || md['dc:title'] || asset.id || 'Asset';
 
-    const coords = extractCoords(asset);
+    const coords = extractCoords(md);
     if (!coords) {
       $('map').style.display = 'none';
       $('coords').textContent = '';
       $('place').innerHTML = '';
       status.style.display = 'block';
       status.className = 'msg';
-      status.textContent = 'Deze asset bevat geen GPS-metadata.';
+      // Toon beschikbare veldnamen die op GPS lijken — helpt de juiste veldnaam vinden.
+      const gpsLike = Object.keys(md).filter(k => /gps|lat|lon|geo|coord|position/i.test(k));
+      status.textContent = 'Geen GPS-coördinaten gevonden.'
+        + (gpsLike.length ? ' Mogelijk relevante velden: ' + gpsLike.join(', ') : '');
       return;
     }
 
@@ -108,52 +105,16 @@
     marker = L.marker([coords.lat, coords.lon]).addTo(map);
   }
 
-  // Pakt de eerste geselecteerde asset uit een context/selectie-object.
-  function firstSelected(ctx) {
-    try {
-      const sel = ctx?.activeTab?.assetSelection
-        || ctx?.assetSelection
-        || (Array.isArray(ctx) ? ctx : null);
-      return sel && sel.length ? sel[0] : null;
-    } catch (e) { return null; }
-  }
-
-  // ---- TIJDELIJKE DIAGNOSTIEK ----
-  // Stuurt status naar de Assets-pagina zodat we van buitenaf kunnen meekijken.
-  // Verwijderen zodra de plugin werkt.
-  const diag = (stage, extra) => {
-    try { window.parent.postMessage({ __diag: true, stage, ...extra }, '*'); } catch (_) {}
-    try { $('status').textContent = 'DIAG: ' + stage + (extra ? ' ' + JSON.stringify(extra).slice(0,120) : ''); } catch(_){}
-  };
-  const sample = (obj) => {
-    try { return obj && typeof obj === 'object' ? Object.keys(obj).slice(0, 40) : String(obj).slice(0,40); }
-    catch (_) { return 'n/a'; }
-  };
-
   (async () => {
-    diag('boot', { hasPC: typeof AssetsPluginContext !== 'undefined' });
     try {
-      // Race get() tegen een timeout zodat we "blijft hangen" kunnen onderscheiden.
-      const ctx = await Promise.race([
-        AssetsPluginContext.get(cfg.CLIENT_URL_WHITELIST),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('TIMEOUT_8s')), 8000)),
-      ]);
-      const c = ctx.context || {};
-      const at = c.activeTab || {};
-      const sel = at.assetSelection || c.assetSelection || [];
-      const first = sel && sel.length ? sel[0] : null;
-      diag('connected', {
-        ctxKeys: sample(c),
-        activeTabKeys: sample(at),
-        selLen: Array.isArray(sel) ? sel.length : 'not-array',
-        firstItemKeys: first ? sample(first) : null,
-        mdKeys: first && first.metadata ? sample(first.metadata) : null,
-      });
-      const update = () => render(firstSelected(ctx.context));
-      update();
-      ctx.subscribe(update);
+      const client = await Assets10Client.bootstrap({ handshakeTimeoutMs: 5000 });
+      const update = () => render((client.getSelection() || [])[0] || null);
+      update();                              // initiële selectie
+      client.onSelectionUpdate(() => update()); // bij elke selectiewijziging
     } catch (err) {
-      diag('error', { msg: String(err && err.message || err).slice(0, 120) });
+      const status = $('status');
+      status.className = 'msg';
+      status.textContent = 'Kon geen verbinding maken met Assets (' + (err && err.message || err) + ').';
     }
   })();
 </script>
