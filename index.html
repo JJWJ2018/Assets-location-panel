@@ -5,29 +5,117 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Location</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <style>
-  :root { --border:#e3e6ea; --text:#1b1f24; --muted:#6b7480; --accent:#2f6df6; }
+  :root {
+    --bg: #ffffff;
+    --soft: #f6f7f9;
+    --line: #e8eaed;
+    --text: #1a1d21;
+    --muted: #6b7280;
+    --dim: #9aa1ab;
+    --accent: #2563eb;
+    --accent-50: #eef3ff;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(16,24,40,.06), 0 1px 2px rgba(16,24,40,.04);
+  }
   * { box-sizing: border-box; }
-  html, body { margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--text); }
-  .wrap { display:flex; flex-direction:column; height:100vh; }
-  .body { padding:12px 14px; overflow-y:auto; flex:1; }
-  .asset-name { font-size:13px; font-weight:600; margin:0 0 2px; word-break:break-all; }
-  .coords { font-size:12px; color:var(--muted); margin:0 0 10px; font-variant-numeric:tabular-nums; }
-  #map { width:100%; height:280px; border-radius:10px; border:1px solid var(--border); }
-  .place { margin-top:10px; font-size:13px; }
-  .place b { display:block; font-size:12px; color:var(--muted); font-weight:500; margin-bottom:2px; }
-  .msg { margin-top:8px; font-size:12px; color:var(--muted); background:#fff7e6; border:1px solid #ffe0a3; padding:10px; border-radius:8px; }
-  .msg.info { background:#eef3ff; border-color:#cdd9ff; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { display: flex; flex-direction: column; height: 100vh; }
+
+  /* Header */
+  .head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .head .badge { width: 30px; height: 30px; border-radius: 8px; background: var(--accent-50); color: var(--accent);
+    display: flex; align-items: center; justify-content: center; flex: none; }
+  .head .badge svg { width: 17px; height: 17px; }
+  .head h1 { font-size: 14px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+  .head p { font-size: 11.5px; color: var(--dim); margin: 1px 0 0; }
+
+  .body { padding: 14px 16px; overflow-y: auto; flex: 1; }
+
+  /* Asset card */
+  .asset { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .asset .thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; background: var(--soft);
+    border: 1px solid var(--line); flex: none; }
+  .asset .meta { min-width: 0; }
+  .asset .name { font-size: 13px; font-weight: 600; margin: 0; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; }
+  .asset .sub { font-size: 11.5px; color: var(--muted); margin: 1px 0 0; }
+
+  /* Map */
+  #map { width: 100%; height: 260px; border-radius: var(--radius); border: 1px solid var(--line);
+    box-shadow: var(--shadow); }
+  .leaflet-container { font: inherit; }
+
+  /* Place / coords */
+  .place { margin-top: 14px; }
+  .place .city { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+  .place .region { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; background: var(--soft); border: 1px solid var(--line);
+    border-radius: 999px; padding: 5px 10px; font-size: 11.5px; color: var(--text);
+    font-variant-numeric: tabular-nums; }
+  .pill .k { color: var(--dim); }
+
+  .maps-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 12.5px;
+    font-weight: 500; color: var(--accent); text-decoration: none; }
+  .maps-link:hover { text-decoration: underline; }
+  .maps-link svg { width: 13px; height: 13px; }
+
+  /* States */
+  .msg { font-size: 12.5px; color: var(--muted); background: var(--soft); border: 1px solid var(--line);
+    padding: 14px; border-radius: var(--radius); line-height: 1.5; }
+  .msg.warn { background: #fff8ec; border-color: #fde4b3; color: #7a5a16; }
+  .skeleton-pin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--line);
+    border-top-color: var(--accent); animation: spin .8s linear infinite; margin: 24px auto 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Custom marker */
+  .pin-marker { width: 22px; height: 22px; }
+  .pin-marker svg { filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="head">
+    <span class="badge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    </span>
+    <div>
+      <h1>Location</h1>
+      <p id="headSub">Where this photo was taken</p>
+    </div>
+  </div>
+
   <div class="body">
-    <p class="asset-name" id="assetName">Geen asset geselecteerd</p>
-    <p class="coords" id="coords"></p>
-    <div id="map" style="display:none;"></div>
-    <div class="place" id="place"></div>
-    <div class="msg info" id="status">Verbinden met Assets…</div>
+    <div class="asset" id="assetRow" style="display:none;">
+      <img class="thumb" id="thumb" alt="" />
+      <div class="meta">
+        <p class="name" id="assetName">—</p>
+        <p class="sub" id="assetSub"></p>
+      </div>
+    </div>
+
+    <div id="mapWrap" style="display:none;">
+      <div id="map"></div>
+      <div class="place">
+        <div class="city" id="city"></div>
+        <div class="region" id="region"></div>
+      </div>
+      <div class="facts" id="facts"></div>
+      <a class="maps-link" id="mapsLink" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Open in Google Maps
+      </a>
+    </div>
+
+    <div class="msg info" id="status">
+      <div class="skeleton-pin"></div>
+      <div style="text-align:center">Verbinden met Assets…</div>
+    </div>
   </div>
 </div>
 
@@ -39,82 +127,127 @@
 
   const cfg = window.PLUGIN_CONFIG || {};
   const $ = (id) => document.getElementById(id);
-  let map, marker;
+  let map, marker, geoToken = 0;
+
+  const pinIcon = L.divIcon({
+    className: 'pin-marker',
+    html: '<svg viewBox="0 0 24 24" width="26" height="26" fill="#2563eb" stroke="#fff" stroke-width="1.5"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2.4" fill="#fff" stroke="none"/></svg>',
+    iconSize: [26, 26], iconAnchor: [13, 24],
+  });
 
   function ensureMap() {
     if (map) return;
-    map = L.map('map', { zoomControl: true }).setView([20, 0], 2);
+    map = L.map('map', { zoomControl: true, attributionControl: true }).setView([20, 0], 2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '© OpenStreetMap'
     }).addTo(map);
   }
 
-  // Haalt lat/long uit de metadata van een geselecteerde asset.
+  function num(v) { const n = parseFloat(v); return isNaN(n) ? null : n; }
+
   function extractCoords(md) {
     if (!md) return null;
-    const lat = parseFloat(md[cfg.GPS_LAT_FIELD]);
-    const lon = parseFloat(md[cfg.GPS_LON_FIELD]);
-    if (!isNaN(lat) && !isNaN(lon)) return { lat, lon };
-    // fallback: gecombineerd veld, scheidingsteken komma OF spatie ("lat lon" / "lat,lon")
+    const lat = num(md[cfg.GPS_LAT_FIELD]);
+    const lon = num(md[cfg.GPS_LON_FIELD]);
+    if (lat != null && lon != null) return { lat, lon, alt: num(md[cfg.GPS_ALT_FIELD]) };
     const combined = md[cfg.GPS_LOCATION_FIELD];
     if (typeof combined === 'string') {
       const [a, b] = combined.trim().split(/[,\s]+/).map(parseFloat);
-      if (!isNaN(a) && !isNaN(b)) return { lat: a, lon: b };
+      if (!isNaN(a) && !isNaN(b)) return { lat: a, lon: b, alt: num(md[cfg.GPS_ALT_FIELD]) };
     }
     return null;
   }
 
+  function fmtBytes(b) {
+    b = Number(b); if (!b || isNaN(b)) return '';
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(0) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
+  }
+
+  function showStatus(text, warn) {
+    $('status').className = 'msg' + (warn ? ' warn' : ' info');
+    $('status').textContent = text;
+    $('status').style.display = 'block';
+    $('mapWrap').style.display = 'none';
+  }
+
+  // Omgekeerde geocodering: coördinaten → plaatsnaam (OpenStreetMap Nominatim).
+  async function reverseGeocode(lat, lon, token) {
+    $('city').textContent = '';
+    $('region').textContent = 'Locatie opzoeken…';
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=12&accept-language=nl`);
+      const j = await r.json();
+      if (token !== geoToken) return; // nieuwere selectie; negeren
+      const a = j.address || {};
+      const city = a.city || a.town || a.village || a.county || a.state || '';
+      const region = [a.state && a.state !== city ? a.state : null, a.country].filter(Boolean).join(', ');
+      $('city').textContent = city || j.name || 'Onbekende locatie';
+      $('region').textContent = region;
+    } catch (_) {
+      if (token !== geoToken) return;
+      $('city').textContent = '';
+      $('region').textContent = '';
+    }
+  }
+
   function render(asset) {
-    const status = $('status');
     if (!asset) {
-      $('assetName').textContent = 'Geen asset geselecteerd';
-      $('coords').textContent = '';
-      $('map').style.display = 'none';
-      $('place').innerHTML = '';
-      status.style.display = 'block';
-      status.className = 'msg info';
-      status.textContent = 'Selecteer een foto om de locatie te zien.';
+      $('assetRow').style.display = 'none';
+      showStatus('Selecteer een foto om de locatie te zien.');
       return;
     }
 
     const md = asset.metadata || {};
-    $('assetName').textContent = md.filename || md['dc:title'] || asset.id || 'Asset';
+    const name = md.filename || md['dc:title'] || asset.id || 'Asset';
+
+    // Asset-rij
+    $('assetRow').style.display = 'flex';
+    $('assetName').textContent = name;
+    $('assetSub').textContent = [name.split('.').pop()?.toUpperCase(), fmtBytes(md.fileSize)].filter(Boolean).join(' · ');
+    const thumb = $('thumb');
+    if (asset.thumbnailUrl) { thumb.src = asset.thumbnailUrl; thumb.style.display = 'block'; thumb.onerror = () => thumb.style.display = 'none'; }
+    else { thumb.style.display = 'none'; }
 
     const coords = extractCoords(md);
     if (!coords) {
-      $('map').style.display = 'none';
-      $('coords').textContent = '';
-      $('place').innerHTML = '';
-      status.style.display = 'block';
-      status.className = 'msg';
-      // Toon beschikbare veldnamen die op GPS lijken — helpt de juiste veldnaam vinden.
       const gpsLike = Object.keys(md).filter(k => /gps|lat|lon|geo|coord|position/i.test(k));
-      status.textContent = 'Geen GPS-coördinaten gevonden.'
-        + (gpsLike.length ? ' Mogelijk relevante velden: ' + gpsLike.join(', ') : '');
+      showStatus('Geen GPS-coördinaten in deze foto.' + (gpsLike.length ? ' (Velden gezien: ' + gpsLike.join(', ') + ')' : ''), true);
       return;
     }
 
-    status.style.display = 'none';
-    $('coords').textContent = coords.lat.toFixed(5) + ', ' + coords.lon.toFixed(5);
-    $('place').innerHTML = '';
-    $('map').style.display = 'block';
+    // Kaart tonen
+    $('status').style.display = 'none';
+    $('mapWrap').style.display = 'block';
     ensureMap();
     setTimeout(() => map.invalidateSize(), 0);
     map.setView([coords.lat, coords.lon], 13, { animate: true });
     if (marker) marker.remove();
-    marker = L.marker([coords.lat, coords.lon]).addTo(map);
+    marker = L.marker([coords.lat, coords.lon], { icon: pinIcon }).addTo(map);
+
+    // Facts
+    const facts = [
+      `<span class="pill"><span class="k">Lat</span> ${coords.lat.toFixed(5)}</span>`,
+      `<span class="pill"><span class="k">Lon</span> ${coords.lon.toFixed(5)}</span>`,
+    ];
+    if (coords.alt != null) facts.push(`<span class="pill"><span class="k">Hoogte</span> ${coords.alt.toFixed(0)} m</span>`);
+    $('facts').innerHTML = facts.join('');
+
+    $('mapsLink').href = `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lon}`;
+
+    geoToken++;
+    reverseGeocode(coords.lat, coords.lon, geoToken);
   }
 
   (async () => {
     try {
       const client = await Assets10Client.bootstrap({ handshakeTimeoutMs: 5000 });
       const update = () => render((client.getSelection() || [])[0] || null);
-      update();                              // initiële selectie
-      client.onSelectionUpdate(() => update()); // bij elke selectiewijziging
+      update();
+      client.onSelectionUpdate(() => update());
     } catch (err) {
-      const status = $('status');
-      status.className = 'msg';
-      status.textContent = 'Kon geen verbinding maken met Assets (' + (err && err.message || err) + ').';
+      showStatus('Kon geen verbinding maken met Assets (' + (err && err.message || err) + ').', true);
     }
   })();
 </script>

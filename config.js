@@ -7,5 +7,6 @@ window.PLUGIN_CONFIG = {
   // soms een gecombineerd gpsLocation-veld ("lat,lon").
   GPS_LAT_FIELD: 'gpsLatitude',
   GPS_LON_FIELD: 'gpsLongitude',
-  GPS_LOCATION_FIELD: 'gpsLocation', // fallback: gecombineerd "lat,lon"
+  GPS_LOCATION_FIELD: 'gpsLocation', // fallback: gecombineerd "lat,lon" of "lat lon"
+  GPS_ALT_FIELD: 'gpsAltitude',      // optioneel: hoogte in meters
 };
