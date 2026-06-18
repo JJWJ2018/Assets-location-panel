@@ -67,7 +67,8 @@
 
   /* States */
   .msg { font-size: 12.5px; color: var(--muted); background: var(--soft); border: 1px solid var(--line);
-    padding: 14px; border-radius: var(--radius); line-height: 1.5; }
+    padding: 11px 14px; border-radius: var(--radius); line-height: 1.45; text-align: center;
+    max-width: 300px; margin: 6px auto 0; }
   .msg.warn { background: #fff8ec; border-color: #fde4b3; color: #7a5a16; }
   .skeleton-pin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--line);
     border-top-color: var(--accent); animation: spin .8s linear infinite; margin: 24px auto 10px; }
@@ -175,7 +176,7 @@
   // Omgekeerde geocodering: coördinaten → plaatsnaam (OpenStreetMap Nominatim).
   async function reverseGeocode(lat, lon, token) {
     $('city').textContent = '';
-    $('region').textContent = 'Locatie opzoeken…';
+    $('region').textContent = 'Looking up location…';
     try {
       const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=12&accept-language=nl`);
       const j = await r.json();
@@ -183,7 +184,7 @@
       const a = j.address || {};
       const city = a.city || a.town || a.village || a.county || a.state || '';
       const region = [a.state && a.state !== city ? a.state : null, a.country].filter(Boolean).join(', ');
-      $('city').textContent = city || j.name || 'Onbekende locatie';
+      $('city').textContent = city || j.name || 'Unknown location';
       $('region').textContent = region;
     } catch (_) {
       if (token !== geoToken) return;
@@ -195,7 +196,7 @@
   function render(asset) {
     if (!asset) {
       $('assetRow').style.display = 'none';
-      showStatus('Selecteer een foto om de locatie te zien.');
+      showStatus('Select a photo to see its location.');
       return;
     }
 
@@ -213,7 +214,7 @@
     const coords = extractCoords(md);
     if (!coords) {
       const gpsLike = Object.keys(md).filter(k => /gps|lat|lon|geo|coord|position/i.test(k));
-      showStatus('Geen GPS-coördinaten in deze foto.' + (gpsLike.length ? ' (Velden gezien: ' + gpsLike.join(', ') + ')' : ''), true);
+      showStatus('No GPS coordinates in this photo.' + (gpsLike.length ? ' (Fields seen: ' + gpsLike.join(', ') + ')' : ''), true);
       return;
     }
 
@@ -231,7 +232,7 @@
       `<span class="pill"><span class="k">Lat</span> ${coords.lat.toFixed(5)}</span>`,
       `<span class="pill"><span class="k">Lon</span> ${coords.lon.toFixed(5)}</span>`,
     ];
-    if (coords.alt != null) facts.push(`<span class="pill"><span class="k">Hoogte</span> ${coords.alt.toFixed(0)} m</span>`);
+    if (coords.alt != null) facts.push(`<span class="pill"><span class="k">Altitude</span> ${coords.alt.toFixed(0)} m</span>`);
     $('facts').innerHTML = facts.join('');
 
     $('mapsLink').href = `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lon}`;
@@ -247,7 +248,7 @@
       update();
       client.onSelectionUpdate(() => update());
     } catch (err) {
-      showStatus('Kon geen verbinding maken met Assets (' + (err && err.message || err) + ').', true);
+      showStatus('Could not connect to Assets (' + (err && err.message || err) + ').', true);
     }
   })();
 </script>
